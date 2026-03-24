@@ -28,7 +28,6 @@
 // ==/UserScript==
 
 // TO-DO:
-//   - replace the checking timer with the observer
 
 (function () {
     'use strict';
@@ -81,7 +80,7 @@
     <path d="m465.016 0h-344.456c-9.52 0-17.223 7.703-17.223 17.223v86.114h-86.114c-9.52 0-17.223 7.703-17.223 17.223v344.456c0 9.52 7.703 17.223 17.223 17.223h344.456c9.52 0 17.223-7.703 17.223-17.223v-86.114h86.114c9.52 0 17.223-7.703 17.223-17.223v-344.456c0-9.52-7.703-17.223-17.223-17.223zm-120.56 447.793h-310.01v-310.01h310.011v310.01zm103.337-103.337h-68.891v-223.896c0-9.52-7.703-17.223-17.223-17.223h-223.896v-68.891h310.011v310.01z"/>
 </svg>`;
 
-    var preUrl = "";
+    let preUrl = "";
 
     document.addEventListener('keydown', keyDownHandler);
 
@@ -144,15 +143,16 @@
         return null;
     }
 
-    var checkExistTimer = setInterval(function () {
+    const savePostSelector = 'article *:not(li)>*>*>*>div:not([class])>div[role="button"]:not([style]):not([tabindex="-1"])';
+    const profileSelector = 'header section svg circle';
+    const playSvgPathSelector = 'path[d="M5.888 22.5a3.46 3.46 0 0 1-1.721-.46l-.003-.002a3.451 3.451 0 0 1-1.72-2.982V4.943a3.445 3.445 0 0 1 5.163-2.987l12.226 7.059a3.444 3.444 0 0 1-.001 5.967l-12.22 7.056a3.462 3.462 0 0 1-1.724.462Z"]';
+    const pauseSvgPathSelector = 'path[d="M15 1c-3.3 0-6 1.3-6 3v40c0 1.7 2.7 3 6 3s6-1.3 6-3V4c0-1.7-2.7-3-6-3zm18 0c-3.3 0-6 1.3-6 3v40c0 1.7 2.7 3 6 3s6-1.3 6-3V4c0-1.7-2.7-3-6-3z"]';
+
+    function checkAndAddButtons() {
         const curUrl = window.location.href;
-        const savePostSelector = 'article *:not(li)>*>*>*>div:not([class])>div[role="button"]:not([style]):not([tabindex="-1"])';
-        const storySelector = 'section > *:not(main) header div>svg:not([aria-label=""])';
-        const profileSelector = 'header section svg circle';
-        const playSvgPathSelector = 'path[d="M5.888 22.5a3.46 3.46 0 0 1-1.721-.46l-.003-.002a3.451 3.451 0 0 1-1.72-2.982V4.943a3.445 3.445 0 0 1 5.163-2.987l12.226 7.059a3.444 3.444 0 0 1-.001 5.967l-12.22 7.056a3.462 3.462 0 0 1-1.724.462Z"]';
-        const pauseSvgPathSelector = 'path[d="M15 1c-3.3 0-6 1.3-6 3v40c0 1.7 2.7 3 6 3s6-1.3 6-3V4c0-1.7-2.7-3-6-3zm18 0c-3.3 0-6 1.3-6 3v40c0 1.7 2.7 3 6 3s6-1.3 6-3V4c0-1.7-2.7-3-6-3z"]';
 
         let rgb = getComputedStyle(document.body).backgroundColor.match(/[.?\d]+/g);
+        if (!rgb) return;
         let iconColor = (rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114) <= 150 ? 'white' : 'black'
 
         // clear all custom buttons when url changing
@@ -174,8 +174,8 @@
         // check independent post page
         if (isPostPage()) {
             let savebtn = queryHas(document, 'div[role="button"] > div[role="button"]:not([style])', 'polygon[points="20 21 12 13.44 4 21 4 3 20 3 20 21"]') || queryHas(document, 'div[role="button"] > div[role="button"]:not([style])', 'path[d="M20 22a.999.999 0 0 1-.687-.273L12 14.815l-7.313 6.912A1 1 0 0 1 3 21V3a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1Z"]');
-            if (document.getElementsByClassName('custom-btn').length === 0) {
-                if (savebtn.parentNode.querySelector('svg')) {
+            if (savebtn && document.getElementsByClassName('custom-btn').length === 0) {
+                if (savebtn.parentNode && savebtn.parentNode.querySelector('svg')) {
                     addCustomBtn(savebtn.parentNode.querySelector('svg'), iconColor, append2IndependentPost);
                 }
             }
@@ -198,22 +198,40 @@
         }
 
         preUrl = curUrl;
-    }, 500);
+    }
+
+    // Use MutationObserver instead of setInterval polling
+    checkAndAddButtons();
+    let debounceTimer = null;
+    const observer = new MutationObserver(function () {
+        if (debounceTimer) return;
+        debounceTimer = setTimeout(function () {
+            debounceTimer = null;
+            checkAndAddButtons();
+        }, 200);
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
 
     function append2Post(node, btn) {
         node.append(btn);
     }
 
     function append2IndependentPost(node, btn) {
-        node.parentNode.parentNode.append(btn);
+        if (node.parentNode && node.parentNode.parentNode) {
+            node.parentNode.parentNode.append(btn);
+        }
     }
 
     function append2Header(node, btn) {
-        node.parentNode.parentNode.parentNode.appendChild(btn, node.parentNode.parentNode);
+        if (node.parentNode && node.parentNode.parentNode && node.parentNode.parentNode.parentNode) {
+            node.parentNode.parentNode.parentNode.appendChild(btn, node.parentNode.parentNode);
+        }
     }
 
     function append2Story(node, btn) {
-        node.parentNode.parentNode.parentNode.append(btn);
+        if (node.parentNode && node.parentNode.parentNode && node.parentNode.parentNode.parentNode) {
+            node.parentNode.parentNode.parentNode.append(btn);
+        }
     }
 
     function addCustomBtn(node, iconColor, appendNode) {
@@ -234,7 +252,9 @@
 
     function createCustomBtn(svg, iconColor, className, marginLeft) {
         let newBtn = document.createElement('a');
-        newBtn.innerHTML = svg.replace('%color', iconColor);
+        let parser = new DOMParser();
+        let svgDoc = parser.parseFromString(svg.replace('%color', iconColor), 'image/svg+xml');
+        newBtn.appendChild(document.importNode(svgDoc.documentElement, true));
         newBtn.setAttribute('class', 'custom-btn ' + className);
         newBtn.setAttribute('target', '_blank');
         newBtn.setAttribute('style', 'cursor: pointer;margin-left: ' + marginLeft + ';margin-top: 8px;z-index: 999;');
@@ -332,8 +352,15 @@
                         .pop();
                     mediaName = mediaName.substring(0, mediaName.lastIndexOf('.'));
                     let datetime = new Date(articleNode.querySelector('time').getAttribute('datetime'));
-                    let posterName = articleNode.querySelector('header a') || findPostName(articleNode);
-                    posterName = posterName.getAttribute('href').replace(/\//g, '');
+                    let posterNameNode = articleNode.querySelector('header a') || findPostName(articleNode);
+                    let posterName;
+                    if (typeof posterNameNode === 'string') {
+                        posterName = posterNameNode;
+                    } else if (posterNameNode) {
+                        posterName = posterNameNode.getAttribute('href').replace(/\//g, '');
+                    } else {
+                        posterName = 'unknown';
+                    }
                     let postId = findPostId(articleNode);
                     let filename = filenameFormat(postFilenameTemplate, posterName, datetime, mediaName, postId, mediaIndex);
                     downloadResource(url, filename);
@@ -343,7 +370,7 @@
                 }
             }
         } catch (e) {
-            console.log(`Uncatched in postOnClicked(): ${e}\n${e.stack}`);
+            console.error(`Uncaught in postOnClicked(): ${e}\n${e.stack}`);
             return null;
         }
     }
@@ -378,7 +405,7 @@
                     // media type is image
                     url = articleNode.querySelector('article  div[role] div > img').getAttribute('src');
                 } else {
-                    console.log('Err: not find media at handle post single');
+                    console.error('Err: not find media at handle post single');
                 }
             }
         } else {
@@ -394,11 +421,14 @@
                 const listElementWidth = Math.max(...listElements.map(element => element.clientWidth));
 
                 const positionsMap = listElements.reduce((result, element) => {
-                    const position = Math.round(Number(element.style.transform.match(/-?(\d+)/)[1]) / listElementWidth);
+                    const transformMatch = element.style.transform.match(/-?(\d+)/);
+                    if (!transformMatch || listElementWidth === 0) return result;
+                    const position = Math.round(Number(transformMatch[1]) / listElementWidth);
                     return { ...result, [position]: element };
                 }, {});
 
                 const node = positionsMap[mediaIndex];
+                if (!node) throw 'Cannot find the media node at index ' + mediaIndex;
                 if (node.querySelector('video')) {
                     // media type is video
                     let videoElem = node.querySelector('video');
@@ -418,7 +448,10 @@
     }
 
     function findHighlightsIndex() {
-        let currentDivProgressbarDiv = document.querySelector('div[style^="transform"]').parentElement;
+        let transformDiv = document.querySelector('div[style^="transform"]');
+        if (!transformDiv) return 0;
+        let currentDivProgressbarDiv = transformDiv.parentElement;
+        if (!currentDivProgressbarDiv) return 0;
         let progressbarRootDiv = currentDivProgressbarDiv.parentElement;
         let progressbarDivs = progressbarRootDiv.children;
         return Array.from(progressbarDivs).indexOf(currentDivProgressbarDiv);
@@ -444,26 +477,16 @@
                     let match = bodyScripts[i].text.match(appIdPattern);
                     if (match) return match[1];
                 }
-                console.log("Cannot find app id");
+                console.error("Cannot find app id");
                 return null;
             }
 
-            async function findMediaId(mediaIdx) {
-                // method 4
-                function method4(mediaIdx) {
-                    let href = window.location.href;
-                    // let match = document.body.innerHTML.match(/"id":"(\d+_\d+)"/);
-                    let matchs = [...document.body.innerHTML.matchAll(/"id":"(\d+_\d+)"/g)];
-                    if (href.includes('stories') && matchs.length > mediaIdx) return matchs[mediaIdx][1];
-                    return null;
-                }
-
+            async function findMediaId() {
                 // method 1: extract from url.
                 function method1() {
                     let href = window.location.href;
                     let match = href.match(/www.instagram.com\/stories\/[^\/]+\/(\d+)/);
                     if (!href.includes('highlights') && match) return match[1];
-                    return null;
                 }
 
                 // method 3
@@ -503,13 +526,12 @@
                             }
                         }
                     }
-                    return null;
                 }
 
                 return method1() || await method3() || method2();
             }
 
-            function getImgOrVedioUrl(item) {
+            function getImgOrVideoUrl(item) {
                 if ("video_versions" in item) {
                     return item.video_versions[0].url;
                 } else {
@@ -529,17 +551,16 @@
                 mode: 'cors'
             };
 
-            let mediaId = await findMediaId(mediaIdx);
+            let mediaId = await findMediaId();
             if (!mediaId) {
-                console.log("Cannot find media id");
+                console.error("Cannot find media id");
                 return null;
             }
             if (!(mediaId in infoCache)) {
                 let url = 'https://i.instagram.com/api/v1/media/' + mediaId + '/info/';
                 let resp = await fetch(url, headers);
                 if (resp.status !== 200) {
-                    console.log(`Fetch info API failed with status code: ${resp.status}`);
-                    console.log(`context: ${JSON.stringify(await resp.json(), space=2)}`);
+                    console.error(`Fetch info API failed with status code: ${resp.status}`);
                     return null;
                 }
                 let respJson = await resp.json();
@@ -548,19 +569,19 @@
             let infoJson = infoCache[mediaId];
             if ('carousel_media' in infoJson.items[0]) {
                 // multi-media post
-                return getImgOrVedioUrl(infoJson.items[0].carousel_media[mediaIdx]);
+                return getImgOrVideoUrl(infoJson.items[0].carousel_media[mediaIdx]);
             } else {
                 // single media post
-                return getImgOrVedioUrl(infoJson.items[0]);
+                return getImgOrVideoUrl(infoJson.items[0]);
             }
         } catch (e) {
-            console.log(`Uncatched in getUrlFromInfoApi(): ${e}\n${e.stack}`);
+            console.error(`Uncaught in getUrlFromInfoApi(): ${e}\n${e.stack}`);
             return null;
         }
     }
 
     function findPostName(articleNode) {
-        // this grabs the username link that is visually in the author's post comment below the media 
+        // this grabs the username link that is visually in the author's post comment below the media
         // 'article section' includes the likes section and comment box
         // '+ * a' pulls the first element after the section that contains a link (comment box doesn't)
         // '[href^="/"][href$="/"]' requires the href attribute to begin and end with a slash to match a username
@@ -583,7 +604,7 @@
         } else {
             // first H2 with a direction set
             const el = document.querySelector('h2[dir]');
-            return el.innerText;
+            return el ? el.innerText : null;
         }
     }
 
@@ -606,12 +627,14 @@
         let posterUrl = timeNodes[timeNodes.length - 1].parentNode.parentNode.href;
         const posterPattern = /\/([^\/?]*)\?/;
         let posterMatch = poster.match(posterPattern);
-        let postFileName = posterMatch[1];
+        if (!posterMatch) return null;
+        let postFileName = posterMatch[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         let resp = await fetch(posterUrl);
         let content = await resp.text();
         // special thanks to 孙年忠 for the pattern (https://greasyfork.org/zh-TW/scripts/406535-instagram-download-button/discussions/116675)
         const pattern = new RegExp(`${postFileName}.*?video_versions.*?url":("[^"]*")`, 's');
         let match = content.match(pattern);
+        if (!match) return null;
         let videoUrl = JSON.parse(match[1]);
         videoUrl = videoUrl.replace(/^(?:https?:\/\/)?(?:[^@\/\n]+@)?(?:www\.)?([^:\/?\n]+)/g, 'https://scontent.cdninstagram.com');
         videoElem.setAttribute('videoURL', videoUrl);
@@ -637,7 +660,7 @@
             let mediaName = url.split('?')[0].split('\\').pop().split('/').pop();
             mediaName = mediaName.substring(0, mediaName.lastIndexOf('.'));
             let datetime = new Date(sectionNode.querySelector('time').getAttribute('datetime'));
-            let posterName = "unkown";
+            let posterName = "unknown";
             // method 1
             const posterNameHeader = sectionNode.querySelector('header a');
             if (posterNameHeader) {
@@ -645,7 +668,7 @@
             }
 
             // method 2
-            if (posterName === "unkown") {
+            if (posterName === "unknown") {
                 const match = window.location.pathname.match(posterUrlPat);
                 if (match) {
                     posterName = match[1];
@@ -669,7 +692,7 @@
 
     async function storyGetUrl(target, sectionNode) {
         let url = null;
-        if (!disableNewUrlFetchMethod) url = await getUrlFromInfoApi(target);
+        if (!disableNewUrlFetchMethod) url = await getUrlFromInfoApi(sectionNode);
 
         if (!url) {
             if (sectionNode.querySelector('video > source')) {
